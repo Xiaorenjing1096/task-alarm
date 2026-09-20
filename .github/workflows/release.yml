@@ -53,6 +53,13 @@ jobs:
 
       # Signing is only configured when the repository secrets exist. Expose them
       # as the environment variables app/build.gradle.kts looks for.
+      # Signing is only configured when the repository secrets exist. Expose them
+      # as the environment variables app/build.gradle.kts looks for.
+      #
+      # Every value is stripped of CR/LF first. A secret pasted out of a file
+      # frequently carries a trailing newline, and GITHUB_ENV cannot represent a
+      # multiline value — the password would be silently truncated and Gradle
+      # would later fail with a message that never mentions which secret is wrong.
       - name: Prepare release signing (optional)
         env:
           KEYSTORE_BASE64: ${{ secrets.APPALARM_KEYSTORE_BASE64 }}
@@ -60,18 +67,38 @@ jobs:
           KEY_ALIAS: ${{ secrets.APPALARM_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.APPALARM_KEY_PASSWORD }}
         run: |
-          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+          set -euo pipefail
+          strip() { printf '%s' "$1" | tr -d '\r\n'; }
+
+          if [ -z "$(strip "${KEYSTORE_BASE64:-}")" ]; then
             echo "::warning::APPALARM_KEYSTORE_BASE64 is not set — this APK will be signed with a throwaway debug key, so it cannot be installed over a build signed with a different key."
             exit 0
           fi
+
           KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
-          echo "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_FILE"
+          strip "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_FILE"
+          echo "decoded keystore: $(stat -c%s "$KEYSTORE_FILE") bytes"
+
           {
             echo "APPALARM_KEYSTORE_FILE=$KEYSTORE_FILE"
-            echo "APPALARM_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
-            echo "APPALARM_KEY_ALIAS=$KEY_ALIAS"
-            echo "APPALARM_KEY_PASSWORD=$KEY_PASSWORD"
+            echo "APPALARM_KEYSTORE_PASSWORD=$(strip "$KEYSTORE_PASSWORD")"
+            echo "APPALARM_KEY_ALIAS=$(strip "$KEY_ALIAS")"
+            echo "APPALARM_KEY_PASSWORD=$(strip "$KEY_PASSWORD")"
           } >> "$GITHUB_ENV"
+
+      # Check the credentials here, not deep inside Gradle. A wrong password or a
+      # wrong alias makes AGP fail while packaging with a message that does not
+      # say which secret is at fault; keytool says it plainly.
+      - name: Verify the signing keystore
+        if: env.APPALARM_KEYSTORE_FILE != ''
+        run: |
+          set -euo pipefail
+          echo "alias: $APPALARM_KEY_ALIAS"
+          "$JAVA_HOME/bin/keytool" -list -v \
+            -keystore "$APPALARM_KEYSTORE_FILE" \
+            -storepass "$APPALARM_KEYSTORE_PASSWORD" \
+            -alias "$APPALARM_KEY_ALIAS" > /dev/null
+          echo "::notice::signing keystore and credentials verified"
 
       # Never ship an APK whose tests did not pass.
       - name: Unit tests
