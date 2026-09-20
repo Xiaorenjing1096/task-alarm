@@ -1,4 +1,4 @@
-# Shared build environment for this project. Dot-source it, do not run it.
+﻿# Shared build environment for this project. Dot-source it, do not run it.
 #
 # WHY THIS FILE EXISTS
 #
