@@ -79,11 +79,29 @@ jobs:
           strip "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_FILE"
           echo "decoded keystore: $(stat -c%s "$KEYSTORE_FILE") bytes"
 
+          STOREPASS="$(strip "$KEYSTORE_PASSWORD")"
+          KEYPASS="$(strip "$KEY_PASSWORD")"
+          if [ -z "$KEYPASS" ]; then
+            KEYPASS="$STOREPASS"
+          fi
+
+          # keytool -genkeypair writes a PKCS12 store by default on modern JDKs
+          # (DER header 30 82), and PKCS12 keeps a *single* password for both the
+          # store and the key. So a differing APPALARM_KEY_PASSWORD can only ever
+          # be a typo — and it fails late, inside AGP's packaging task, with the
+          # very unhelpful "Given final block not properly padded". Use the store
+          # password instead and say so.
+          MAGIC="$(head -c 2 "$KEYSTORE_FILE" | od -An -tx1 | tr -d ' \n')"
+          if [ "$KEYPASS" != "$STOREPASS" ] && [ "$MAGIC" = "3082" ]; then
+            echo "::warning::APPALARM_KEY_PASSWORD differs from APPALARM_KEYSTORE_PASSWORD, but this is a PKCS12 keystore (single password). Using the store password. Consider deleting the APPALARM_KEY_PASSWORD secret."
+            KEYPASS="$STOREPASS"
+          fi
+
           {
             echo "APPALARM_KEYSTORE_FILE=$KEYSTORE_FILE"
-            echo "APPALARM_KEYSTORE_PASSWORD=$(strip "$KEYSTORE_PASSWORD")"
+            echo "APPALARM_KEYSTORE_PASSWORD=$STOREPASS"
             echo "APPALARM_KEY_ALIAS=$(strip "$KEY_ALIAS")"
-            echo "APPALARM_KEY_PASSWORD=$(strip "$KEY_PASSWORD")"
+            echo "APPALARM_KEY_PASSWORD=$KEYPASS"
           } >> "$GITHUB_ENV"
 
       # Check the credentials here, not deep inside Gradle. A wrong password or a
