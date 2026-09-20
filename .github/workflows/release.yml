@@ -105,7 +105,22 @@ jobs:
         run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
 
       - name: Build release APK
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/gradle-release.log
+
+      # GitHub's job-log download endpoint requires admin rights on the repo (it
+      # answers 403 to an anonymous request even for a public repo), so a failed
+      # run is otherwise a black box to anyone but the owner. Emit the Gradle
+      # error as an annotation instead — the annotations API *is* public.
+      - name: Surface the build failure
+        if: failure()
+        run: |
+          REPORT="$(sed -n '/What went wrong/,/^\* Try:/p' /tmp/gradle-release.log | head -30 | tr '\n' ' ' | tr -s ' ')"
+          if [ -z "$REPORT" ]; then
+            REPORT="$(grep -m 10 -i -E 'error|failed|cannot|not found|no such' /tmp/gradle-release.log | tr '\n' ' ')"
+          fi
+          echo "::error title=Gradle failure::${REPORT:0:60000}"
 
       - name: Show what will be published
         run: ls -l app/build/outputs/apk/release/
