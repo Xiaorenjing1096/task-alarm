@@ -255,7 +255,7 @@ java tools/Fetch.java <url> [regexFilter]
 | `APPALARM_KEYSTORE_FILE` | `.jks` 路径 |
 | `APPALARM_KEYSTORE_PASSWORD` | 密钥库口令 |
 | `APPALARM_KEY_ALIAS` | 别名 |
-| `APPALARM_KEY_PASSWORD` | 别名口令 |
+| `APPALARM_KEY_PASSWORD` | 别名口令（**建议留空或不建**，见下方说明） |
 
 **一个都没配时会回退到调试密钥** —— 侧载没问题，但**不能上架**，而且 AGP 会在每台机器上重新生成调试密钥库，
 于是不同机器（以及每一次 CI 运行）产出的 APK 签名都不同，用户无法覆盖升级、只能先卸载旧版。
@@ -292,7 +292,7 @@ git push origin v1.0
 | `APPALARM_KEYSTORE_BASE64` | 上一步复制到的 base64 |
 | `APPALARM_KEYSTORE_PASSWORD` | 密钥库口令 |
 | `APPALARM_KEY_ALIAS` | 别名 |
-| `APPALARM_KEY_PASSWORD` | 别名口令 |
+| `APPALARM_KEY_PASSWORD` | 别名口令（**建议留空或不建**，见下方说明） |
 
 > 没配这 4 个 Secret 时构建仍然成功，但会用**临时调试密钥**签名 —— 每次 CI 产出的 APK 签名都不同，
 > 用户无法覆盖升级。所以 CI 会打一条 warning 提醒你。

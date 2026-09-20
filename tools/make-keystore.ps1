@@ -1,4 +1,10 @@
 ﻿#!/usr/bin/env pwsh
+#
+# ⚠️ 本文件含中文，必须保存为 UTF-8 **带 BOM**。
+#    这台机器上的 pwsh 实际是 Windows PowerShell 5.1，它读取无 BOM 的 UTF-8 时会按
+#    ANSI(GBK) 解码；中文被拆坏后会波及引号配对，整个脚本直接变成语法错误。
+#    用编辑器改完记得确认 BOM 还在（很多工具会顺手剥掉它）。
+#
 # 生成 release 签名密钥，并准备好 GitHub Secrets 需要的值。
 #
 # 为什么必须有它：AGP 会在每台机器上重新生成调试密钥库。所以如果 release 用调试密钥
@@ -95,7 +101,12 @@ Write-Host ""
 Write-Host "      APPALARM_KEYSTORE_BASE64      ← 粘贴上面那份 base64（整个文件内容）"
 Write-Host "      APPALARM_KEYSTORE_PASSWORD    ← 你刚才设的库口令"
 Write-Host "      APPALARM_KEY_ALIAS            ← $Alias"
-Write-Host "      APPALARM_KEY_PASSWORD         ← 同上，也是你的库口令"
+Write-Host "      APPALARM_KEY_PASSWORD         ← 可以不建，见下方说明"
+Write-Host ""
+Write-Host "   关于 APPALARM_KEY_PASSWORD：keytool 生成的是 PKCS12 密钥库，它**只有单一口令**，"
+Write-Host "   密钥口令必须等于库口令。填成别的值，打包时会失败并报一句很难懂的"
+Write-Host "   'Given final block not properly padded'。所以**建议干脆不建这个 Secret**；"
+Write-Host "   万一建了又不一致，CI 会发出 warning 并自动改用库口令。"
 Write-Host ""
 Write-Host "3) 然后打 tag 触发自动发布："
 Write-Host "      git tag -a v1.0 -m `"v1.0`""

@@ -1,5 +1,9 @@
 ﻿# Shared build environment for this project. Dot-source it, do not run it.
 #
+# ⚠️ 本文件含中文，必须保存为 UTF-8 **带 BOM**：这台机器上的 pwsh 实际是
+#    Windows PowerShell 5.1，它读取无 BOM 的 UTF-8 时会按 ANSI(GBK) 解码，
+#    中文被拆坏后会波及引号配对，整个脚本直接变成语法错误。
+#
 # WHY THIS FILE EXISTS
 #
 # The DSH file sandbox only allows writes inside the project directory, while
