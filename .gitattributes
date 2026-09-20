@@ -1,0 +1,29 @@
+# Normalize line endings in the repository.
+#
+# This matters more than usual for an Android project: `gradlew` is a shell
+# script, and if it is checked out with CRLF on Linux/macOS it dies with
+# "/bin/sh^M: bad interpreter". CI runs on Linux, so it has to be LF there.
+#
+# GitHub's runners set core.autocrlf=false, but a Windows checkout with
+# core.autocrlf=true would otherwise rewrite these files.
+
+* text=auto
+
+# Shell scripts must stay LF everywhere.
+gradlew   text eol=lf
+*.sh      text eol=lf
+
+# Windows batch files must stay CRLF.
+gradlew.bat text eol=crlf
+*.bat       text eol=crlf
+
+# Keep binaries untouched.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.gif   binary
+*.ico   binary
+*.jar   binary
+*.keystore binary
+*.jks   binary

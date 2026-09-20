@@ -1,0 +1,64 @@
+# ---------------------------------------------------------------------------
+# Android / Gradle build output
+# ---------------------------------------------------------------------------
+*.iml
+.gradle
+/build
+/app/build
+/captures
+.externalNativeBuild
+.cxx
+/local.properties
+local.properties
+
+# ---------------------------------------------------------------------------
+# IDE state that is either regenerated or machine-specific
+# ---------------------------------------------------------------------------
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.idea/shelf/
+.DS_Store
+
+# ---------------------------------------------------------------------------
+# Signing material — NEVER commit these.
+# A leaked release keystore means anyone can ship a fake update for this
+# package, and losing it means you can never update your own app again.
+# ---------------------------------------------------------------------------
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# ---------------------------------------------------------------------------
+# Machine-local build state for THIS checkout.
+#
+# The file sandbox this project was developed in only allows writes inside the
+# project, so Gradle, the Android tools and the emulator are redirected into
+# these directories (see tools/gradle-env.ps1 and tools/emulator-env.ps1).
+# They hold caches, a project-local Gradle user home (including a
+# machine-specific gradle.properties), the debug keystore and AVD disk images —
+# never source, never commit them.
+# ---------------------------------------------------------------------------
+/.gradle-home
+/.android-home
+/.kotlin
+
+# ---------------------------------------------------------------------------
+# Scratch output
+# ---------------------------------------------------------------------------
+# Logs written by tools/build.ps1, tools/test.ps1 and tools/emulator.ps1
+/*-log.txt
+/*-log*.txt
+/emu-*.txt
+/emulator-*.txt
+
+# Ad-hoc end-to-end fixtures generated while testing
+/e2e-*.json
+
+# Raw test screenshots. The curated ones the README references live in
+# docs/screenshots/.
+/shots
