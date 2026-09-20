@@ -5,6 +5,7 @@ import android.content.Context
 import com.appalarm.alarm.AlarmScheduler
 import com.appalarm.alarm.RingNotifier
 import com.appalarm.data.AppRepository
+import com.appalarm.diagnostics.EventLog
 
 class AppAlarmApplication : Application() {
 
@@ -15,6 +16,11 @@ class AppAlarmApplication : Application() {
         super.onCreate()
         repository = AppRepository(this).also { it.load() }
         RingNotifier.ensureChannels(this)
+
+        EventLog.record(
+            this,
+            "应用启动，重新排期 ${repository.alarms.count { it.enabled }} 个启用的闹钟",
+        )
 
         // 幂等的安全网：无论之前是因为重装、升级还是进程被杀导致排期丢失，
         // 每次启动都把闹钟重新对齐一遍。开机和时区变化由 RescheduleReceiver 负责。

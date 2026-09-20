@@ -1,6 +1,7 @@
 package com.appalarm.alarm
 
 import android.app.Notification
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -21,6 +22,7 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.appalarm.appRepository
 import com.appalarm.data.model.Alarm
+import com.appalarm.diagnostics.EventLog
 
 /**
  * 响铃。
@@ -81,7 +83,21 @@ class RingService : Service() {
         }
 
         alarmId = requestedId
-        goForeground(RingNotifier.ringingNotification(this, alarm))
+        EventLog.record(this, "响铃服务开始执行")
+        try {
+            goForeground(RingNotifier.ringingNotification(this, alarm))
+            EventLog.record(this, "已进入前台服务")
+        } catch (e: Exception) {
+            // 进不了前台也不能就这么算了：通知照样要发出去，声音也要继续响，
+            // 否则用户看到的就是「什么都没有」—— 那正是最难排查的症状。
+            EventLog.record(this, "进入前台服务失败：${e.javaClass.simpleName}: ${e.message}")
+            runCatching {
+                getSystemService(NotificationManager::class.java)?.notify(
+                    RingNotifier.NOTIFICATION_ID_RINGING,
+                    RingNotifier.ringingNotification(this, alarm),
+                )
+            }
+        }
         acquireWakeLock()
         startPlayback(alarm)
         launchRingActivity(requestedId)
@@ -122,6 +138,7 @@ class RingService : Service() {
         stopVibration()
         releaseWakeLock()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        EventLog.record(this, "响铃结束（服务销毁）")
         super.onDestroy()
     }
 
@@ -161,11 +178,14 @@ class RingService : Service() {
             RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)?.let(::add)
         }.distinct()
 
-        if (candidates.any { tryStartPlayback(it) }) {
+        val playing = candidates.firstOrNull { tryStartPlayback(it) }
+        if (playing != null) {
+            EventLog.record(this, "开始播放铃声：$playing")
             playbackStartedAt = SystemClock.elapsedRealtime()
             handler.post(ticker)
+        } else {
+            EventLog.record(this, "所有铃声都无法播放（共试了 ${candidates.size} 个）")
         }
-        // 一个都放不出来时不额外处理：下面的震动至少能让用户醒过来。
 
         if (alarm.vibrate) startVibration()
     }

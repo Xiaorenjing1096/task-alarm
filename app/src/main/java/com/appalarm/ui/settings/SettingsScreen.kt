@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.appalarm.appRepository
 import com.appalarm.data.model.TaskType
+import com.appalarm.diagnostics.EventLog
 import com.appalarm.ui.exactAlarmSettingsIntent
 import com.appalarm.ui.fullScreenIntentSettingsIntent
 import com.appalarm.ui.notificationSettingsIntent
@@ -45,6 +46,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     var permissions by remember { mutableStateOf(context.readPermissionStatus()) }
     var toast by remember { mutableStateOf<String?>(null) }
+    var eventLines by remember { mutableStateOf(EventLog.read(context)) }
 
     Column(
         modifier = Modifier
@@ -218,6 +220,42 @@ fun SettingsScreen(onBack: () -> Unit) {
                     "如果某个闹钟要用的题型在题库里一道题都没有，响铃时会自动出计算题，" +
                         "以保证闹钟一定关得掉。",
                 )
+            }
+        }
+
+        HorizontalDivider()
+
+        // ---------------- 响铃诊断记录 ----------------
+        Text("响铃诊断记录", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(
+            text = "响铃链路的关键节点都会记在这里。闹钟没响时，把这里的内容念出来就能判断" +
+                "是「系统根本没唤醒应用」（被强行停止/被后台管控）还是「唤醒了但响铃失败」。" +
+                "注意：如果某个时刻应该响却没有对应记录，那本身就是最有用的证据。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { eventLines = EventLog.read(context) }) { Text("刷新") }
+            OutlinedButton(
+                onClick = {
+                    EventLog.clear(context)
+                    eventLines = EventLog.read(context)
+                },
+            ) { Text("清空") }
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Column(Modifier.padding(12.dp)) {
+                if (eventLines.isEmpty()) {
+                    Text("（暂无记录）", style = MaterialTheme.typography.bodySmall)
+                } else {
+                    eventLines.reversed().forEach { line ->
+                        Text(
+                            text = line,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(vertical = 1.dp),
+                        )
+                    }
+                }
             }
         }
 

@@ -8,6 +8,7 @@ import android.os.Build
 import com.appalarm.MainActivity
 import com.appalarm.core.NextTriggerCalculator
 import com.appalarm.data.model.Alarm
+import com.appalarm.diagnostics.EventLog
 import java.time.ZonedDateTime
 
 /**
@@ -49,11 +50,22 @@ class AlarmScheduler(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+        // 记下真正排给系统的时刻（不是闹钟自身的 timeLabel），这样对比「到点有没有
+        // 触发」时不会因为跨天而看错。
+        val whenText = java.time.Instant.ofEpochMilli(triggerAt)
+            .atZone(java.time.ZoneId.systemDefault())
+            .format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm"))
+
         try {
             alarmManager.setAlarmClock(AlarmManager.AlarmClockInfo(triggerAt, showIntent), operation)
+            EventLog.record(context, "已排期(精确) $whenText  id=${alarm.id.take(8)}")
         } catch (_: SecurityException) {
             // 精确闹钟权限被撤销时退化：晚几分钟响，总比完全不响好。
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, operation)
+            EventLog.record(
+                context,
+                "已排期(不精确：精确闹钟未授权，可能被推迟) $whenText  id=${alarm.id.take(8)}",
+            )
         }
     }
 

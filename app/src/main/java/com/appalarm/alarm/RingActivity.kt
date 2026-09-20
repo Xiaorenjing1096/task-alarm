@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.appalarm.diagnostics.EventLog
 import com.appalarm.ui.ring.RingScreen
 import com.appalarm.ui.theme.AppAlarmTheme
 
@@ -47,6 +48,7 @@ class RingActivity : ComponentActivity() {
                 )
             }
         }
+        EventLog.record(this, "答题界面已打开")
     }
 
     override fun onNewIntent(intent: Intent) {
