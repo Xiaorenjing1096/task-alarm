@@ -26,6 +26,11 @@ class AlarmReceiver : BroadcastReceiver() {
         if (alarm.repeatDaysMask == Weekdays.NONE) {
             // 一次性闹钟：响过就关掉，否则明天同一时刻还会再响一遍。
             repository.setAlarmEnabled(alarmId, false)
+            // 还必须把 AlarmManager 里的排期一并撤掉。因为进程很可能正是被这次闹钟
+            // 拉起来的，而 AppAlarmApplication.onCreate 里的 rescheduleAll 会顺手
+            // 按「下一次」再排一遍（对一次性闹钟就是明天）。不撤销的话，明天到点会
+            // 把进程唤醒一次却什么都不做。
+            AlarmScheduler(context).cancel(alarmId)
         } else {
             AlarmScheduler(context).schedule(alarm)
         }

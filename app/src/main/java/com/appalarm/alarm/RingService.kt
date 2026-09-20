@@ -89,12 +89,21 @@ class RingService : Service() {
     }
 
     /**
-     * 再补一次「直接拉起答题界面」。
+     * 再补一次「拉起答题界面」。
      *
-     * 正常情况下全屏 Intent 通知会把界面顶上来，但那条路径依赖
-     * USE_FULL_SCREEN_INTENT 被授予（Android 14 起默认不授予）。多试一条路不会
-     * 产生两个界面（RingActivity 是 singleInstance），却能在权限缺失时救回来。
-     * 被后台启动限制拦住时会抛异常，那不是错误，忽略即可。
+     * 这里留了两条路，因为不同系统版本的放行规则不一样：
+     *
+     *  1. 直接 `startActivity` —— 在「显示在其他应用上层」被授予时属于 BAL 豁免项。
+     *  2. 复用全屏通知那个 PendingIntent 的 `send()`。
+     *
+     * **实测（Android 15 / targetSdk 37）：亮屏时两条都会被拦**，日志里是
+     * `Background activity launch blocked! ... autoOptInReason: notPendingIntent`。
+     * 原因是平台设计：`setFullScreenIntent` 只在**锁屏或息屏**时才会被系统自动
+     * 全屏拉起，亮屏时只显示悬浮通知（这时闹钟仍在响、通知仍在，点一下即可进来）。
+     *
+     * 所以这两步是「能成就成」的补充，不是主路径 —— 主路径是锁屏/息屏时系统自己
+     * 拉起全屏界面，实测在进程被杀的情况下也正常。
+     * 失败不算错误；RingActivity 是 singleInstance，不会出现两个界面。
      */
     private fun launchRingActivity(alarmId: String) {
         runCatching {
@@ -104,6 +113,7 @@ class RingService : Service() {
                     .putExtra(EXTRA_ALARM_ID, alarmId),
             )
         }
+        runCatching { RingNotifier.fullScreenPendingIntent(this, alarmId).send() }
     }
 
     override fun onDestroy() {
