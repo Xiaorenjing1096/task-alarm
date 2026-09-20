@@ -86,6 +86,9 @@ jobs:
       # `gh` is preinstalled on the runners, which avoids pulling in another
       # third-party action — the android-actions/setup-android failure was a
       # reminder of why that matters.
+      #
+      # Release notes are hand-written per version in docs/release-notes/<tag>.md
+      # when that file exists, and otherwise generated from the commit list.
       - name: Publish the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -93,11 +96,14 @@ jobs:
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
           APK="app/build/outputs/apk/release/app-release.apk"
+          NOTES="docs/release-notes/${TAG}.md"
           test -f "$APK"
           if gh release view "$TAG" > /dev/null 2>&1; then
             # Re-running a tag (e.g. after deleting and re-pushing it) updates the
             # existing release instead of failing.
             gh release upload "$TAG" "$APK" --clobber
+          elif [ -f "$NOTES" ]; then
+            gh release create "$TAG" "$APK" --title "$TAG" --notes-file "$NOTES"
           else
             gh release create "$TAG" "$APK" --title "$TAG" --generate-notes
           fi
