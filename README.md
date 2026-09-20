@@ -214,18 +214,53 @@ java tools/Fetch.java <url> [regexFilter]
 
 ## 关于签名
 
-`release` 构建目前用**调试密钥**签名（见 `app/build.gradle.kts` 里的 `signingConfigs.getByName("debug")`），
-这是为了方便侧载 —— 产物可以直接安装，但**不能上架应用商店**，而且换一台机器后签名会变、必须先卸载旧版才能装。
+`release` 的签名方式由 4 个环境变量决定（见 `app/build.gradle.kts` 的 `signingConfigs`）：
 
-要正式分发，请生成自己的发布密钥：
+| 变量 | 含义 |
+|---|---|
+| `APPALARM_KEYSTORE_FILE` | `.jks` 路径 |
+| `APPALARM_KEYSTORE_PASSWORD` | 密钥库口令 |
+| `APPALARM_KEY_ALIAS` | 别名 |
+| `APPALARM_KEY_PASSWORD` | 别名口令 |
+
+**一个都没配时会回退到调试密钥** —— 侧载没问题，但**不能上架**，而且 AGP 会在每台机器上重新生成调试密钥库，
+于是不同机器（以及每一次 CI 运行）产出的 APK 签名都不同，用户无法覆盖升级、只能先卸载旧版。
+
+先生成一个正式密钥库：
 
 ```bash
 keytool -genkeypair -v -keystore release.jks -keyalg RSA -keysize 2048 \
         -validity 10000 -alias appalarm
 ```
 
-然后把路径和密码填进 `build.gradle.kts` 的 `signingConfigs`。
-
 **keystore 和密码绝对不要提交进仓库** —— `.gitignore` 已经挡住了 `*.jks` / `*.keystore` / `keystore.properties`。
 丢了这个密钥，你就再也无法给同一个应用发布更新了。
+
+### 自动发布
+
+推送一个 `v*` 标签，`.github/workflows/release.yml` 会自动跑测试、构建 R8 压缩后的 release APK，
+并附到 GitHub Release 上 —— 手机可以直接从 Release 页面下载安装，**不需要数据线**：
+
+```bash
+git tag -a v1.0 -m "v1.0"
+git push origin v1.0
+```
+
+**首次发布前**，在 `Settings → Secrets and variables → Actions` 添加 4 个 Secret，
+让 CI 用你的正式密钥签名（keystore 以 base64 存储）：
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("release.jks")) | Set-Clipboard
+```
+
+| Secret 名 | 值 |
+|---|---|
+| `APPALARM_KEYSTORE_BASE64` | 上一步复制到的 base64 |
+| `APPALARM_KEYSTORE_PASSWORD` | 密钥库口令 |
+| `APPALARM_KEY_ALIAS` | 别名 |
+| `APPALARM_KEY_PASSWORD` | 别名口令 |
+
+> 没配这 4 个 Secret 时构建仍然成功，但会用**临时调试密钥**签名 —— 每次 CI 产出的 APK 签名都不同，
+> 用户无法覆盖升级。所以 CI 会打一条 warning 提醒你。
+
 

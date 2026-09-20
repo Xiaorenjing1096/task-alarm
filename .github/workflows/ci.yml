@@ -25,26 +25,20 @@ jobs:
           distribution: temurin
           java-version: '25'
 
-      # The ubuntu runner images already ship the Android SDK. This used to go
-      # through android-actions/setup-android@v3, which was itself the reason the
-      # job failed (it targets Node 20 and is being force-run on Node 24), so the
-      # SDK is now set up directly. Locate sdkmanager either on PATH or at the
-      # conventional cmdline-tools location.
-      - name: Install Android SDK packages
-        run: |
-          set -euo pipefail
-          echo "ANDROID_HOME=${ANDROID_HOME:-<unset>}"
-          SDKMANAGER="$(command -v sdkmanager || echo "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager")"
-          echo "sdkmanager: $SDKMANAGER"
-          # Without accepted licenses sdkmanager fails; `yes` answers the prompts.
-          yes | "$SDKMANAGER" --licenses > /dev/null || true
-          # compileSdk 37 needs the platform; build-tools 36.0.0 is what AGP 9.4
-          # actually uses for it (a 37.x build-tools is not required). Both were
-          # confirmed present in Google's repository2-3.xml. If this still fails,
-          # do not abort — AGP can auto-download missing SDK packages itself, and
-          # its error message is the more useful one.
-          "$SDKMANAGER" --install "platforms;android-37" "build-tools;36.0.0" "platform-tools" \
-            || echo "::warning::sdkmanager could not install every package; leaving it to AGP"
+      # The ubuntu runner images ship the Android SDK with the licenses already
+      # accepted, and AGP downloads anything else it needs (platform 37,
+      # build-tools 36.0.0) through its own SDK auto-download.
+      #
+      # This step used to call `sdkmanager --install` explicitly. That call always
+      # failed, because the sdkmanager preinstalled on the runner is too old to
+      # parse the current SDK repository. It was harmless — AGP fetched the
+      # packages anyway — but keeping the job alive needed an `|| true`, which
+      # made this step's "success" meaningless. So it is gone. Re-accepting the
+      # licenses is cheap insurance, and `continue-on-error` means a failure here
+      # is recorded honestly instead of being swallowed.
+      - name: Accept Android SDK licenses
+        continue-on-error: true
+        run: yes | sdkmanager --licenses > /dev/null
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6

@@ -1,0 +1,103 @@
+name: Release
+
+# Pushing a version tag builds the R8-minified release APK and attaches it to a
+# GitHub Release, so the APK can be downloaded straight onto a phone and
+# sideloaded — no cable, no adb.
+#
+#   git tag -a v1.0 -m "v1.0"
+#   git push origin v1.0
+#
+# Before the first release, add the four signing secrets (Settings → Secrets and
+# variables → Actions). Without them the build still succeeds, but the APK is
+# signed with a throwaway debug key and users cannot upgrade in place:
+#
+#   APPALARM_KEYSTORE_BASE64     base64 of your .jks
+#   APPALARM_KEYSTORE_PASSWORD
+#   APPALARM_KEY_ALIAS
+#   APPALARM_KEY_PASSWORD
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # required to create the release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # AGP 9.4 requires a Java 25 toolchain; running Gradle on JDK 25 is enough.
+      - name: Set up JDK 25
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      # The runner images ship the SDK with licenses already accepted, and AGP
+      # fetches everything else itself. See the note in ci.yml for why there is
+      # no explicit sdkmanager --install step.
+      - name: Accept Android SDK licenses
+        continue-on-error: true
+        run: yes | sdkmanager --licenses > /dev/null
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      # Signing is only configured when the repository secrets exist. Expose them
+      # as the environment variables app/build.gradle.kts looks for.
+      - name: Prepare release signing (optional)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.APPALARM_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.APPALARM_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.APPALARM_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.APPALARM_KEY_PASSWORD }}
+        run: |
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::warning::APPALARM_KEYSTORE_BASE64 is not set — this APK will be signed with a throwaway debug key, so it cannot be installed over a build signed with a different key."
+            exit 0
+          fi
+          KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_FILE"
+          {
+            echo "APPALARM_KEYSTORE_FILE=$KEYSTORE_FILE"
+            echo "APPALARM_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "APPALARM_KEY_ALIAS=$KEY_ALIAS"
+            echo "APPALARM_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      # Never ship an APK whose tests did not pass.
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Build release APK
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Show what will be published
+        run: ls -l app/build/outputs/apk/release/
+
+      # `gh` is preinstalled on the runners, which avoids pulling in another
+      # third-party action — the android-actions/setup-android failure was a
+      # reminder of why that matters.
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -f "$APK"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            # Re-running a tag (e.g. after deleting and re-pushing it) updates the
+            # existing release instead of failing.
+            gh release upload "$TAG" "$APK" --clobber
+          else
+            gh release create "$TAG" "$APK" --title "$TAG" --generate-notes
+          fi

@@ -24,6 +24,32 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // ------------------------------------------------------------------------
+    // 可选的 release 正式签名。
+    //
+    // 通过环境变量提供密钥库（CI 里用仓库 Secrets，本地用自己的 shell）：
+    //
+    //   APPALARM_KEYSTORE_FILE        .jks 路径
+    //   APPALARM_KEYSTORE_PASSWORD
+    //   APPALARM_KEY_ALIAS
+    //   APPALARM_KEY_PASSWORD
+    //
+    // 没配时回退到调试密钥 —— 侧载没问题，但**绝不能用来分发**：AGP 会在每台
+    // 机器上重新生成调试密钥库，于是每个构建者（以及每一次 CI 运行）产出的 APK
+    // 签名都不同，用户永远无法覆盖升级，只能先卸载。
+    // ------------------------------------------------------------------------
+    signingConfigs {
+        val keystorePath = System.getenv("APPALARM_KEYSTORE_FILE")
+        if (!keystorePath.isNullOrBlank() && file(keystorePath).exists()) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("APPALARM_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("APPALARM_KEY_ALIAS")
+                keyPassword = System.getenv("APPALARM_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             // 打开 R8 压缩与资源裁剪 —— 「轻量」是这个应用的目标之一。
@@ -32,9 +58,8 @@ android {
             optimization {
                 enable = true
             }
-            // 自用侧载：用调试密钥签名，assembleRelease 出来的包可以直接安装。
-            // 如果将来要上架，换成自己的发布密钥，并且不要把密钥提交进版本库。
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
+                ?: signingConfigs.getByName("debug")
         }
     }
     compileOptions {
