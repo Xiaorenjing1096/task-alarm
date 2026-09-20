@@ -62,3 +62,7 @@ signing.properties
 # Raw test screenshots. The curated ones the README references live in
 # docs/screenshots/.
 /shots
+
+# CI logs downloaded from GitHub Actions while debugging a run
+/.ci-logs
+/logs_*.zip

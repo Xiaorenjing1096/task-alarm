@@ -39,8 +39,12 @@ jobs:
           # Without accepted licenses sdkmanager fails; `yes` answers the prompts.
           yes | "$SDKMANAGER" --licenses > /dev/null || true
           # compileSdk 37 needs the platform; build-tools 36.0.0 is what AGP 9.4
-          # actually uses for it (a 37.x build-tools is not required).
-          "$SDKMANAGER" --install "platforms;android-37" "build-tools;36.0.0" "platform-tools"
+          # actually uses for it (a 37.x build-tools is not required). Both were
+          # confirmed present in Google's repository2-3.xml. If this still fails,
+          # do not abort — AGP can auto-download missing SDK packages itself, and
+          # its error message is the more useful one.
+          "$SDKMANAGER" --install "platforms;android-37" "build-tools;36.0.0" "platform-tools" \
+            || echo "::warning::sdkmanager could not install every package; leaving it to AGP"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
