@@ -14,32 +14,48 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # AGP 9.4 requires a Java 25 toolchain. Running Gradle itself on JDK 25 is
       # enough — Gradle always treats the JVM running the build as an installed
       # toolchain, so no gradle.properties entry is needed for it.
       - name: Set up JDK 25
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      # compileSdk 37 needs the platform; build-tools 36.0.0 is what AGP 9.4
-      # actually uses for it (a 37.x build-tools is not required).
-      - name: Install SDK packages
-        run: sdkmanager --install "platforms;android-37" "build-tools;36.0.0" "platform-tools"
+      # The ubuntu runner images already ship the Android SDK. This used to go
+      # through android-actions/setup-android@v3, which was itself the reason the
+      # job failed (it targets Node 20 and is being force-run on Node 24), so the
+      # SDK is now set up directly. Locate sdkmanager either on PATH or at the
+      # conventional cmdline-tools location.
+      - name: Install Android SDK packages
+        run: |
+          set -euo pipefail
+          echo "ANDROID_HOME=${ANDROID_HOME:-<unset>}"
+          SDKMANAGER="$(command -v sdkmanager || echo "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager")"
+          echo "sdkmanager: $SDKMANAGER"
+          # Without accepted licenses sdkmanager fails; `yes` answers the prompts.
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          # compileSdk 37 needs the platform; build-tools 36.0.0 is what AGP 9.4
+          # actually uses for it (a 37.x build-tools is not required).
+          "$SDKMANAGER" --install "platforms;android-37" "build-tools;36.0.0" "platform-tools"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       # The wrapper's executable bit is not always preserved when the repo is
-      # committed from Windows, so don't rely on it.
+      # committed from Windows, so do not rely on it.
       - name: Make gradlew executable
         run: chmod +x gradlew
+
+      # Printed up front so a failure report immediately shows which JDK and
+      # Gradle actually ran.
+      - name: Print toolchain versions
+        run: |
+          java -version
+          ./gradlew --version
 
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
@@ -49,14 +65,14 @@ jobs:
 
       - name: Upload test report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unit-test-report
           path: app/build/reports/tests/testDebugUnitTest/
           if-no-files-found: ignore
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/*.apk
